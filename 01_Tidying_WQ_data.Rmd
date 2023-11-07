@@ -45,7 +45,7 @@ be new to you, such as:
 
 -   `broom` : simplified model outputs
 
--   `ggthemes` : makes plots prettier
+-   `trend` : Package to explore trends in data
 
 ```{r setup, warnings = 'hide', message = FALSE}
 source('setup.R')

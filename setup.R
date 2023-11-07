@@ -19,7 +19,7 @@ packages <- c('tidyverse',
               'dataRetrieval',
               'mapview',
               'broom',
-              'ggthemes')
+              'trend')
 
 packageLoad(packages)
 
