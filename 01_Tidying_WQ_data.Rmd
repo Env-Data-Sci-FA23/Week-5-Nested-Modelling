@@ -36,24 +36,24 @@ base](https://www.waterqualitydata.us/), which we will access with the
 
 ## Loading key packages
 
-Let's first load in all of our necessary packages. Some of these
-packages might be new to you, so be sure to install ahead of trying to
-load them in!
+Let's first load in all of our necessary packages, which you can do with
+the 'setup.R' script we've created for you. Some of these packages might
+be new to you, such as:
+
+-   `mapview` : Similar to `tmap`, another package that allows us to
+    interactively map our data
+
+-   `broom` : simplified model outputs
+
+-   `trend` : Package to explore trends in data
 
 ```{r setup, warnings = 'hide', message = FALSE}
-library(tidyverse) # dplyr, tibble, readr, and others to help clean coding
-library(dataRetrieval) # downloads data from the Water Quality Portal and the USGS
-library(sf) # geospatial package to plot and explore data
-library(mapview) # simple interface to leaflet interactive maps
-library(broom) # simplifies model outputs
-library(knitr) # makes nice tables
-library(kableExtra)  # makes even nicer tables
-library(ggthemes) # makes plots prettier
+source('setup.R')
 ```
 
 # Downloading data
 
-For this lab, we'll explore water quality data in the Colorado River
+For this lesson, we'll explore water quality data in the Colorado River
 Basin as it moves from Colorado to Arizona. All data will be generated
 through the code you see below, with the only external information
 coming from knowing the site IDs for the monitoring locations along the
@@ -104,16 +104,10 @@ parameters <- c("Calcium", "Magnesium", "Sodium", "Potassium", "Sulfate", "Sulfa
 ```
 
 Using our site names and characteristic names generated above, we can
-now run `getWQP()` function
+now run the `readWQPdata()` function to import water quality data for
+each of our sites and parameters:
 
 ```{r}
-# parameters %>%
-#   map_dfr(~readWQPdata(siteid = colorado$siteid, # pulling our siteids column in from the colorado object, becomes a vector
-#             sampleMedia = "Water", # WQP also has bilogical data and sediment data
-#             startDateLo = "1980-10-01", # must be formatted as YYYY-MM-DD
-#             startDateHi = "2023-11-01", # must be formatted as YYYY-MM-DD
-#             characteristicName = .x)) # our vector of `characteristcName`s
-
 conc_wide <- readWQPdata(siteid = colorado$siteid, # pulling our siteids column in from the colorado object, becomes a vector
                          sampleMedia = "Water", # WQP also has bilogical data and sediment data
                          startDateLo = "1980-10-01", # must be formatted as YYYY-MM-DD
@@ -130,10 +124,7 @@ form of extra columns. But we don't need all this extra data.
 ## Look at the data you downloaded
 
 ```{r}
-head(conc_wide) %>%
-  kable(.,'html') %>%
-  kable_styling() %>%
-  scroll_box(width = '800px', height = '300px')
+View(conc_wide)
 ```
 
 ## Initial cleaning up
@@ -163,7 +154,7 @@ conc_small <-  conc_wide %>%
          fraction = ResultSampleFractionText,
          status = ResultStatusIdentifier) %>%
   # Remove trailing white space in labels
-  mutate(units = trimws(units))
+  mutate(units = trimws(units))  
 ```
 
 Let's also add in the aliases we established in our`colorado` object,
@@ -181,16 +172,13 @@ conc_meta <- conc_small %>%
                                        parameter %in% c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate") ~ "SO4",
                                        parameter == "Chloride" ~ "Cl",
                                        parameter %in% c("Alkalinity, bicarbonate", "Bicarbonate") ~ "HCO3")) %>%
-  select(siteid,basin, ion, parameter, date, everything())
+  select(siteid, basin, ion, parameter, date, everything())
 ```
 
-Now let's look at the beginning of this tidier version:
+Now let's look at this tidier version:
 
 ```{r}
-head(conc_meta) %>%
-  kable(.,'html') %>%
-  kable_styling() %>%
-  scroll_box(width = '800px', height = '300px')
+View(conc_meta)
 ```
 
 ## Final tidy data set
@@ -253,8 +241,8 @@ site-date combinations had multiple observations on the same day.
 Let's imagine you wanted to add more data to your water quality
 analyses, but you also know that you need to do this analysis over and
 over again. Let's walk through how we would: 1) Add new data to our
-current `conc_clean` data set and 2) how to write a function to
-download, clean, and update our data with far less code.
+current `conc_tidy` data set and 2) how to write a function to download,
+clean, and update our data with far less code.
 
 ## Question 1
 
@@ -264,6 +252,10 @@ structure to the `colorado` one above (e.g. it has columns named
 `siteid` and `basin`). The function should then take in that tibble and
 be able to download and clean data for any of the site IDs below to make
 the data look exactly like `conc_daily`.
+
+```{r}
+
+```
 
 ## Question 2
 
@@ -283,7 +275,7 @@ our original `conc_daily` data set. The steps are:
 2.  *In the function* - Clean the new data and make its structure look
     identical to `conc_tidy`
 
-3.  *With the new data the function returns* - Append it to our original
+3.  *With the new data from the function* - Append it to our original
     `conc_daily` using `bind_rows()`
 
 4.  Save the new data as `tidied_full_wq.RDS` in a folder called 'data'.
@@ -297,9 +289,9 @@ our original `conc_daily` data set. The steps are:
 
 We now have a data set of stream water quality data for several sites
 throughout Colorado. One potential control on stream chemistry is stream
-discharge. A function in the {dataRetrieval} package that can allow you
-to easily download discharge data is `readNWISdv()`. Use this function
-to download daily discharge data for all nine of the sites we are
+discharge. A function in the {dataRetrieval} package that allows you to
+easily download discharge data is `readNWISdv()`. Use this function to
+download daily discharge data for all nine of the sites we are
 interested in. Store the data as an R object called `q_data`, then save
 it as an RDS object: `data/Q.RDS`. The site numbers are the same as
 above but you need to remove `USGS-` from each site. Discharge is
