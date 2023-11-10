@@ -185,10 +185,10 @@ View(conc_meta)
 
 That is getting better, but we still have lots of extraneous
 information. For our purposes let's assume that the sample and analytic
-methods used by the USGS are reasonable and exchangeable (one method is
-equivalent to the other). If we make that assumption then the only
-remaining data we need to clean is to make sure that all the data has
-the same units.
+methods used by the USGS are reasonable and exchangeable (i.e., one
+method is equivalent to the other). If we make that assumption then the
+only remaining data we need to clean is to make sure that all the data
+has the same units.
 
 ### Unit check
 
@@ -197,11 +197,11 @@ table(conc_meta$units)
 ```
 
 Wow! Almost all the data is in mg/L (or, depending on when you pulled
-it, actually all of it). That makes our job really easy.
+it, all of it). That makes our job really easy.
 
 We just need to remove these (potential) non-mg/L observations with a
 `dplyr::filter` call and then select an even smaller subset of useful
-columns, while adding a time object column using the `lubridate::ymd`
+columns, while adding a date object column using the `lubridate::ymd`
 call.
 
 ```{r tidy}
@@ -246,15 +246,15 @@ clean, and update our data with far less code.
 
 ## Question 1
 
-Write a function that can repeat the above steps with a single function
-call. This function should take in a single tibble that is identical in
-structure to the `colorado` one above (e.g. it has columns named
-`siteid` and `basin`). The function should then take in that tibble and
-be able to download and clean data for any of the site IDs below to make
-the data look exactly like `conc_daily`.
+Write a function that can repeat the above steps for any table of site
+IDs with a single function call. This function should take in a single
+tibble that is identical in structure to the `colorado` one above (i.e.,
+it has columns named `siteid` and `basin`), and produce an identical
+data frame to `conc_daily` (i.e., a data frame of daily average ion
+concentrations).
 
 ```{r}
-
+#<<<< YOUR CODE HERE >>>>#
 ```
 
 ## Question 2
@@ -268,34 +268,32 @@ additional_data <- tibble(siteid = c('USGS-09180000', 'USGS-09180500', 'USGS-093
 ```
 
 This output of running the function should look identical in format to
-our original `conc_daily` data set. The steps are:
+our original `conc_daily` data set, but for these sites instead.
 
-1.  *In the function* - Download the new data
+## Question 3
 
-2.  *In the function* - Clean the new data and make its structure look
-    identical to `conc_tidy`
-
-3.  *With the new data from the function* - Append it to our original
-    `conc_daily` using `bind_rows()`
-
-4.  Save the new data as `tidied_full_wq.RDS` in a folder called 'data'.
+Combine the data pulled in Question 2 with the original data from
+`conc_daily`, so that this data is in a single data frame. Save this
+combined data as `tidied_full_wq.RDS` in a folder called data.
 
 ```{r}
+
+#<<<< YOUR CODE HERE >>>>#
 
 #saveRDS(wq, file = 'data/tidied_full_wq.RDS')
 ```
 
-## Question 3
+## Question 4
 
 We now have a data set of stream water quality data for several sites
 throughout Colorado. One potential control on stream chemistry is stream
 discharge. A function in the {dataRetrieval} package that allows you to
 easily download discharge data is `readNWISdv()`. Use this function to
-download daily discharge data for all nine of the sites we are
-interested in. Store the data as an R object called `q_data`, then save
-it as an RDS object: `data/Q.RDS`. The site numbers are the same as
-above but you need to remove `USGS-` from each site. Discharge is
-`parameterCd = 00060` and you can use `renameNWISColumns()` to
+download daily discharge data for all eight of the sites we are
+interested in. Save the data as an RDS object called called `Q` in the
+data folder: `data/Q.RDS`. The site numbers are the same as above but
+you need to remove `USGS-` from each site. Discharge is
+`parameterCd = 00060` and you should use `renameNWISColumns()` to
 automatically make the column names a little less annoying.
 
 ```{r}
@@ -309,7 +307,6 @@ sites <- colorado %>%
   gsub('USGS-', '', .)
 
 #<<<< YOUR CODE HERE >>>>#
-
 
 
 #saveRDS(q_data, file = 'data/Q.RDS')
