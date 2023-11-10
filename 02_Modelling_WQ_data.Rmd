@@ -11,7 +11,7 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r setup, warnings='hide',message=FALSE}
+```{r setup, warnings='hide, message=FALSE}
 source('setup.R')
 ```
 
@@ -37,7 +37,7 @@ colorado <- tibble(siteid = c('USGS-09034500', 'USGS-09069000',
 
 ## Site info extraction
 
-We can get site geospatial information for sites within the Water Quality Portal with the `whatWQPdata()` function. Then, we can reduce and rename columns much like we did in the previous assignment:
+We can get site geospatial information for sites within the Water Quality Portal with the `whatWQPdata()` function. Then, we can reduce and rename columns much like we did in the previous assignment (for our own clarity):
 
 ```{r}
 site_info <- whatWQPsites(siteid=unique(wq$siteid)) %>%
@@ -51,8 +51,6 @@ site_info <- whatWQPsites(siteid=unique(wq$siteid)) %>%
                   long = LongitudeMeasure) %>%
   distinct() %>% # Distinct just keeps the first of any duplicates. 
   inner_join(colorado, by = "siteid")
-
-
 ```
 
 ### Map
@@ -114,7 +112,7 @@ The Mann Kendall test is a non-parametric test of trends, you can use `?mk.test`
 
 ```{r}
 dolores_ca <- dolores_ca %>%
-  #Make sure data is arranged from 1980 onward using `arrange()` 
+  #Make sure data is arranged by date using `arrange()` 
   arrange(date)
 
 dolores_mk <- mk.test(dolores_ca$conc)
@@ -134,34 +132,36 @@ Notice that the sens.slope gives you a slope value, and a p-value (which is the 
 
 #### Cleaner output
 
-The output from these models is kind of messy if you are printing lots of model results. We can use the `tidy()` function from the `broom` package to clean up this output. This turns our results into a tibble, with a column for each value/parameter (similar to the outputs from tests used in the `rstatix` package).
+The output from these models is not organized very nicely. We can use the `tidy()` function from the `broom` package to clean up this output and convert the information into a data frame, with a column for each value/parameter (similar to the outputs from tests used in the `rstatix` package).
 
 ```{r}
 tidy(dolores_slope)
 ```
 
-Some model objects don't include both the p-value and the slope, which is slightly maddening, but we can make our own function to do this:
+Some model objects that get converted using the tidy() function don't include both the p-value and the slope, which is slightly maddening, but we can make our own function to do all of this, including running the model:
 
 ```{r}
-tidier <- function(mod){
+tidier_sens <- function(data){
   
-  tidy(mod) %>%
-    mutate(slope = mod$estimates)
+  model <- sens.slope(data)
+  
+  tidy(model) %>%
+    mutate(slope = model$estimates)
 
   }
 
-tidier(mod = dolores_slope)
+tidier_sens(data = dolores_ca$conc)
 ```
 
-Ok, now we have an elaborate way to confirm what the plot already showed us. There is no long-term trend in Calcium concentrations in the Dolores river (denoted by a high p-value of 0.291, much greater than our usual 0.05 alpha/cut-off).
+We now have a statistical confirmation of what the plot already showed us. There is no long-term trend in Calcium concentrations in the Dolores River (denoted by the high p-value, much greater than our usual 0.05 alpha/cut-off).
 
 # Models everywhere!
 
-Okay so we have already figured out how to model data at a single site for a single parameter, but is there an efficient way to do this for ALL sites and ALL parameters?
+We now know how to model data at a single site for a single parameter, but is there an efficient way to do this for ALL sites and ALL parameters?
 
 HECK YES THERE IS!
 
-We will use the magic of `nesting` data to apply our trend models to all our data. First let's alter the data set a little to increase precision in our question.
+We will use the magic of `nesting` data to apply our trend models to all of our parameters and sites. First let's alter the data set a little to increase precision in our question.
 
 ### Converting data to late summer annual means
 
@@ -171,17 +171,16 @@ Water chemistry is heavily controlled by seasonality and water flow, so let's tr
 low_flow <- wq %>%
   mutate(month = month(date),
          year = year(date)) %>% # create columns of just month and year
-  filter(month %in% c(8,9,10,11)) %>% #fitler later summer months
+  filter(month %in% c(8,9,10,11)) %>% #filter later summer months
   group_by(basin, siteid, parameter, year) %>%
-  summarize(conc = median(conc, na.rm = T)) # calculate annual conc for each site/parameter pair
-
+  summarize(conc = median(conc, na.rm = T)) %>%# calculate annual conc for each site/parameter pair
+  arrange()
 
 ggplot(low_flow, aes(x = year, y = conc, color = basin)) + 
   facet_wrap(~parameter, scales = 'free') + 
   geom_point() + 
   theme_minimal() + 
   scale_y_log10() + 
-  scale_color_hc() + 
   theme(legend.pos = c(0.7, 0.2),
         legend.direction = 'horizontal') +
   ylab('Concentration (mg/l)')
@@ -193,7 +192,7 @@ Now we have a few things:
 
 1.  A data set that is winnowed down to just low-flow periods of the year
 
-2.  A function (`sens.slope`) we can use to look at if there are long-term trends in concentration
+2.  A function (`tidier_sens`) we can use to look at if there are long-term trends in concentration with Sens slope, then convert the Sens slope output to a data frame
 
 3.  A desire to apply this function to all of our sites and water quality parameters
 
@@ -212,19 +211,19 @@ low_nest
 
 The above code produces a tibble with three columns: `basin`, `parameter`, and `data`. The `data` column is our nested (or bundled) data for each basin parameter combination. We know this by the '*list*' data type printed under the 'data' column and each row has a 'tibble' nested within it.
 
-For example, to retrieve one of those nested dataframes:
+For example, to retrieve one of those nested data frames:
 
 ```{r}
-low_nest$data[[1]] #index the tibble in the first row of 'data', using double brackets [[]] since we are indexing a list
+low_nest$data[[1]]  # subset my low_nest data to just the data column, then select just the first nested tibble
 ```
 
 ### Modelling over nested data
 
-Now we want to apply our model to each nested dataframe. To do this we need to use the `map()` function. Map takes in an x (`data` column) and then a function (in this case `sens.slope`). We use `.x$conc` to indicate that we want to apply the model to the concentration column within each bundled (nested) data frame.
+Now we want to apply our model to each nested data frame. To do this we need to use the `map()` function. Map takes in an x (`data` column) and then a function (in this case `sens.slope`). We use `.x$conc` to indicate that we want to apply the model to the concentration column within each bundled (nested) data frame.
 
 ```{r}
 wq_models <- low_nest %>%
-  mutate(mods = map(data, ~ sens.slope(.x$conc))) # create a new column to store the model results of each row/dataset
+  mutate(tidy_mods = map(data, ~ tidier_sens(.x$conc))) # create a new column to store the model results of each row/dataset
 
 wq_models
 ```
@@ -233,7 +232,7 @@ Now we have a nested data set AND nested models (that are hard to see). We can l
 
 ```{r}
 # This provides the 15th model summary
-wq_models$mods[[15]]
+wq_models$tidy_mods[[15]]
 ```
 
 But that is a tedious way to look at our model summaries!
@@ -242,8 +241,7 @@ Instead, we can use the power of our `tidier()` function we made upstream, and `
 
 ```{r}
 wq_mod_summaries <- wq_models %>%
-  mutate(tidy_mods = map(mods, tidier)) %>% # create a new column to store the results of tidier()
-  unnest(tidy_mods)  %>% # separates the nested column into individual columns for each value
+  unnest(tidy_mods) %>% # separates the nested column into individual columns for each value
   select(basin, characteristic, p.value, slope) %>%
   mutate(trend = ifelse(p.value < 0.01, 'yes', 'no')) # create a column telling us whether or not there was a significant trend based on a p-value cut-off of 0.01
 
@@ -264,14 +262,15 @@ ggplot(wq_mod_summaries,aes(x = characteristic, y = slope, color = trend)) +
 
 # Assignment
 
-The above workflow really focuses on trend detection, but we want to focus some on actual linear models. As such we want to join our discharge data to our water quality data and we want to look at the relationship between Q and WQ.
+The above workflow really focuses on trend detection with Sens slope, but here we will focus on an appropriate use of linear models. As such we want to join our discharge data to our water quality data and we want to look at the relationship between Q and WQ.
 
 ## Join Discharge and Water Quality Data
 
-Use `inner_join` to join our discharge data to our water quality data. You want to join by both date and siteid. Remember! the discharge data has site IDs that we had to drop the `USGS-` from, so you will need to add that back in using `paste0`.
+Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water quality data (`tidied_full_wq.RDS`). You want to join by both date and siteid. Remember! the discharge data has site IDs that we had to drop the `USGS-` from, so you will need to add that back in using `paste0`.
 
 ```{r}
 
+#<<<< YOUR CODE HERE >>>>#
 
 ```
 
@@ -279,15 +278,19 @@ Use `inner_join` to join our discharge data to our water quality data. You want 
 
 ```{r}
 
+#<<<< YOUR CODE HERE >>>>#
+
 ```
 
 #### What do you see in this relationship?
 
 ## Models everywhere
 
-Group your data by basin and water quality parameter and nest the data, use the `head` function to print the first several rows of your nested data.
+Group your data by basin and water quality parameter and nest the data.
 
 ```{r}
+
+#<<<< YOUR CODE HERE >>>>#
 
 ```
 
@@ -297,24 +300,32 @@ You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = 
 
 ```{r}
 
+#<<<< YOUR CODE HERE >>>>#
+
 ```
 
 ## Summarize your data using `tidy`
 
-You should have a new column called `mods` or something similar and you need to `tidy` those mods.
+You should have a new column called `mods` or something similar, and you need to `tidy` those mods and store this new, tidier data in another column.
 
 ```{r}
+
+#<<<< YOUR CODE HERE >>>>#
+
 
 ```
 
-## Make a visual of your models summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
+## Make a visual of your models' summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
 
 ```{r}
+
+#<<<< YOUR CODE HERE >>>>#
+
 
 ```
 
 ## Bonus
 
-Look up the `furrr` package. What does furrr::map do that is different from purrr::map?
+Look up the `furrr` package. What does `furrr::map` do that is different from `purrr::map`?
 
 When would you want to use this `furrr` function?
