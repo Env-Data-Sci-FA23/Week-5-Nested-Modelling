@@ -8,8 +8,8 @@ This week you will be working with a new dataset, some water quality data retrie
 
 Remember to first **Fork** this repository and then **clone your forked repo**, and save copies of each .Rmd with *your name* appended to the file name. There are two lesson plans that must be completed for this week's assignment, in order:
 
-1.  **01_Tidying_WQ_data.Rmd**
-2.  **02_Modelling_WQ_data.Rmd**
+1.  **01_Tidying_WQ_data.Rmd** -- No videos!
+2.  **02_Modelling_WQ_data.Rmd** -- [Video 1](https://youtu.be/9V_Ks6phFWQ) + [Video 2](https://youtu.be/rVeRSBk5Xlg)
 
 ### Submission:
 
