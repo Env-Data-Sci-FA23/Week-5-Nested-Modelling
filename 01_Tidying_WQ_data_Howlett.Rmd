@@ -370,7 +370,8 @@ sites <- colorado %>%
   gsub('USGS-', '', .)
 
 q_data <- readNWISdv(sites, parameterCd = "00060") %>% 
-  renameNWISColumns()
+  renameNWISColumns() %>% 
+  filter(Date >= "1980-01-01")
 
 
 saveRDS(q_data, file = 'data/Q.RDS')
