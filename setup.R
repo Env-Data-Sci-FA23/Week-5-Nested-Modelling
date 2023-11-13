@@ -19,7 +19,8 @@ packages <- c('tidyverse',
               'dataRetrieval',
               'mapview',
               'broom',
-              'trend')
+              'trend',
+              'rstatix')
 
 packageLoad(packages)
 
