@@ -324,17 +324,31 @@ You should have a new column called `mods` or something similar, and you need to
 ```{r}
 
 #<<<< YOUR CODE HERE >>>>#
-q_wq_models %>%
-  mutate(tidy_mods = tidy(lm_mods))
+q_wq_models <- q_wq_models %>%
+  mutate(tidy_mods = map(lm_mods, ~tidy(.x)))
+        
 ```
 
 ## Make a visual of your models' summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+#<<<< YOUR CODE HERE >>>>
+mod_summaries <- q_wq_models %>%
+  unnest(tidy_mods)%>%
+  filter(term == "Flow")%>%
+  select(basin, characteristic, p.value, estimate)%>%
+  rename("slope" = estimate)%>%
+  mutate(trend = ifelse(p.value < 0.01, 'yes','no'))
 
-
+mod_summaries %>%
+  ggplot(aes(x = characteristic, y = slope, color = trend))+
+  geom_point()+
+  facet_wrap(~basin, scales = 'free') + 
+  theme_minimal() + 
+  scale_color_manual(values = c('black','green3')) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.pos = c(0.8, 0.1))
 ```
 
 ## Bonus
