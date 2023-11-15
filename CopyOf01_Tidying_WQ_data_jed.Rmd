@@ -318,7 +318,7 @@ wq_fun<- function(x){
 
 }
 
-adddata<-wq_fun(additional_data)
+
 
 ```
 
@@ -330,6 +330,10 @@ quality data for the site IDs listed below:
 ```{r}
 additional_data <- tibble(siteid = c('USGS-09180000', 'USGS-09180500', 'USGS-09380000'),
                           basin = c('dolores', 'colorado4', 'colorado5'))
+```
+
+```{r}
+adddata<-wq_fun(additional_data)
 ```
 
 This output of running the function should look identical in format to
@@ -377,6 +381,8 @@ sites <- colorado %>%
 
 #<<<< YOUR CODE HERE >>>>#
 
+Q<- readNWISdv(sites, parameterCd="00060")%>%
+renameNWISColumns()
 
 #saveRDS(q_data, file = 'data/Q.RDS')
 ```
