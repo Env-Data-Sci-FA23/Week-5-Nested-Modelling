@@ -12,14 +12,13 @@ packageLoad <-
     }
   }
 
-
 # vector of packages to load
-packages <- c('tidyverse',
-              'sf',
+packages <- c('sf',
               'dataRetrieval',
               'mapview',
               'broom',
-              'trend')
+              'trend',
+              'tidyverse')
 
 packageLoad(packages)
 
