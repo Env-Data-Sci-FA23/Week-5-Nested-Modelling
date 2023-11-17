@@ -342,26 +342,21 @@ You should have a new column called `mods` or something similar, and you need to
 ```{r}
 #not sure if this is right?
 tidied_wq_2_models <- wq_2_models %>%
-  mutate(mods_tidied = purrr::map(mods, tidy)) %>%
-  select(-mods)
+  mutate(mods = map(mods, ~tidy(.x)))
 
 #unnest mods_tidied column
 wq_2_model_unnest <- tidied_wq_2_models %>%
-  unnest(mods_tidied)
+  unnest(mods)
 ```
 
 ## Make a visual of your models' summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
 
 ```{r}
-#***NOT DONE WITH THIS... still working on first line of code
-wq_2_mod_summaries <- tidied_wq_2_model_unnest %>%
-  select(siteid, mods_tidied, p.value, slope) %>%
-  mutate(trend = ifelse(p.value < 0.01, 'yes', 'no')) # create a column telling us whether or not there was a significant trend based on a p-value cut-off of 0.01
+wq_2_mod_summaries <- wq_2_model_unnest %>%
+  filter(term == "Flow") %>%
+  mutate(trend = ifelse(p.value < 0.01, 'yes', 'no'))
 
-wq_mod_summaries
-#<<<< YOUR CODE HERE >>>>#
-
-ggplot(wq_mod_summaries,aes(x = characteristic, y = slope, color = trend)) + 
+ggplot(wq_2_mod_summaries, aes(x = parameter, y = estimate, color = trend)) + 
   geom_point() + 
   facet_wrap(~basin, scales = 'free') + 
   theme_minimal() + 
@@ -375,3 +370,9 @@ ggplot(wq_mod_summaries,aes(x = characteristic, y = slope, color = trend)) +
 Look up the `furrr` package. What does `furrr::map` do that is different from `purrr::map`?
 
 When would you want to use this `furrr` function?
+
+Answer:
+
+The **`furrr::map`** function is similar to **`purrr::map`**, but it allows you to perform parallel mapping using the future package. Futures is a way of expressing parallel and distributed computations in R.
+
+You'd want to use `furrr` when you have a large number of independent tasks that can be paralleled. It is especially helpful for tasks that involve a lot of computation.
