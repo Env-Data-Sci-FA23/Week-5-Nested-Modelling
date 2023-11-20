@@ -254,7 +254,68 @@ data frame to `conc_daily` (i.e., a data frame of daily average ion
 concentrations).
 
 ```{r}
-#<<<< YOUR CODE HERE >>>>#
+general_WQ <- tibble(siteid = c("?"),
+                   basin = c("?"))
+
+WQ_tidying_data <- function(general_WQ){
+parameters <- c("Calcium", "Magnesium", "Sodium", "Potassium", "Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate", "Chloride", "Alkalinity, bicarbonate", "Bicarbonate")
+
+conc_wide_USGS <- readWQPdata(siteid = general_WQ$siteid, # pulling our siteids column in from the colorado object, becomes a vector
+                           sampleMedia = "Water", # WQP also has bilogical data and sediment data
+                           startDateLo = "1980-10-01", # must be formatted as YYYY-MM-DD
+                           startDateHi = "2023-11-01", # must be formatted as YYYY-MM-DD
+                           characteristicName = parameters) # our vector of `characteristcName`s
+
+conc_small_USGS <-  conc_wide %>%
+    select(date = ActivityStartDate,
+           parameter = CharacteristicName,
+           units = ResultMeasure.MeasureUnitCode,
+           siteid = MonitoringLocationIdentifier,
+           org = OrganizationFormalName,
+           org_id = OrganizationIdentifier,
+           time = ActivityStartTime.Time,
+           value = ResultMeasureValue,
+           sample_method = SampleCollectionMethod.MethodName,
+           analytical_method = ResultAnalyticalMethod.MethodName,
+           particle_size = ResultParticleSizeBasisText,
+           date_time = ActivityStartDateTime,
+           media = ActivityMediaName,
+           sample_depth = ActivityDepthHeightMeasure.MeasureValue,
+           sample_depth_unit = ActivityDepthHeightMeasure.MeasureUnitCode,
+           fraction = ResultSampleFractionText,
+           status = ResultStatusIdentifier) %>%
+    mutate(units = trimws(units))
+
+conc_meta_USGS <- conc_small %>%
+    left_join(., general_WQ, by = "siteid") %>%
+    dplyr::mutate(ion = dplyr::case_when(parameter == "Calcium" ~ "Ca",
+                                         parameter == "Magnesium" ~ "Mg",
+                                         parameter == "Sodium" ~ "Na",
+                                         parameter == "Potassium" ~ "K",
+                                         parameter %in% c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate") ~ "SO4",
+                                         parameter == "Chloride" ~ "Cl",
+                                         parameter %in% c("Alkalinity, bicarbonate", "Bicarbonate") ~ "HCO3")) %>%
+    select(siteid, basin, ion, parameter, date, everything())
+
+conc_tidy_USGS <- conc_meta %>%
+    filter(units == 'mg/l') %>%
+    mutate(date = ymd(date)) %>%
+    select(date,
+           parameter,
+           ion,
+           siteid,
+           basin,
+           conc = value)
+
+conc_daily_USGS <- conc_tidy %>%
+    group_by(date, parameter, siteid, basin) %>%
+    summarize(conc = mean(conc, na.rm = T))
+}
+
+```
+
+```{r}
+WQ_tidying_data(general_WQ = colorado)
 ```
 
 ## Question 2
@@ -265,6 +326,8 @@ quality data for the site IDs listed below:
 ```{r}
 additional_data <- tibble(siteid = c('USGS-09180000', 'USGS-09180500', 'USGS-09380000'),
                           basin = c('dolores', 'colorado4', 'colorado5'))
+
+WQ_tidying_data(general_WQ = additional_data)
 ```
 
 This output of running the function should look identical in format to
@@ -277,10 +340,11 @@ Combine the data pulled in Question 2 with the original data from
 combined data as `tidied_full_wq.RDS` in a folder called data.
 
 ```{r}
+library(dplyr)
 
-#<<<< YOUR CODE HERE >>>>#
+tidied_full_wq <- bind_rows(conc_daily, additional_data)
 
-#saveRDS(wq, file = 'data/tidied_full_wq.RDS')
+saveRDS(tidied_full_wq, file = 'data/tidied_full_wq.RDS')
 ```
 
 ## Question 4
@@ -297,6 +361,10 @@ you need to remove `USGS-` from each site. Discharge is
 automatically make the column names a little less annoying.
 
 ```{r}
+library(dataRetrieval)
+
+# Save the discharge data as an RDS object
+saveRDS(tidied_full_wq, file = 'data/Q.RDS')
 # Reminder! you can use ?readNWISdv to read about how the function works. 
 sites <- colorado %>%
   #Bind the two datasets to get all 8 sites
@@ -306,8 +374,14 @@ sites <- colorado %>%
   #Remove the USGS- prefix
   gsub('USGS-', '', .)
 
-#<<<< YOUR CODE HERE >>>>#
-
+# Download daily discharge data for all eight sites
+q_data <- readNWISdv(siteNumbers = sites, 
+                     parameterCd = "00060", 
+                     startDate = "1980-10-01", 
+                     endDate = "2023-11-01") %>%
+  # Rename columns to be less annoying
+  renameNWISColumns()
 
 #saveRDS(q_data, file = 'data/Q.RDS')
+saveRDS(q-data, file = 'data/tidied_full_wq.RDS')
 ```

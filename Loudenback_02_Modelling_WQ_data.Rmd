@@ -269,29 +269,55 @@ The above workflow really focuses on trend detection with Sens slope, but here w
 Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water quality data (`tidied_full_wq.RDS`). You want to join by both date and siteid. Remember! the discharge data has site IDs that we had to drop the `USGS-` from, so you will need to add that back in using `paste0`.
 
 ```{r}
+names(discharge_data)
+head(discharge_data)
 
-#<<<< YOUR CODE HERE >>>>#
+names(water_quality_data)
+head(water_quality_data)
+```
+
+```{r}
+library(dplyr)
+
+discharge_data <- readRDS('~/Desktop/Classes/Fall 2023/ESS 523A/Week-5-Nested-Modelling/data/Q.RDS')
+names(discharge_data) <- tolower(names(discharge_data))
+discharge_data <- rename(discharge_data, siteid = site_no)
+
+water_quality_data <- readRDS('~/Desktop/Classes/Fall 2023/ESS 523A/Week-5-Nested-Modelling/data/tidied_full_wq.RDS')
+
+discharge_data <- discharge_data %>%
+  mutate(siteid = paste0('USGS-', siteid))
+
+joined_data <- inner_join(water_quality_data, discharge_data, by = c('date', 'siteid'))
+
+View(joined_data)
 
 ```
 
 ### Pick any site and ion combination and plot discharge versus ion concentration
 
 ```{r}
+selected_data <- joined_data %>%
+  filter(siteid == "USGS-09034500", ion == "Mg")
 
-#<<<< YOUR CODE HERE >>>>#
-
+ggplot(selected_data, aes(x = flow, y = conc)) +
+  geom_point() +
+  labs(title = paste("Discharge vs", "Mg", "Concentration at", "USGS-09034500"),
+       x = "Discharge", y = paste("Mg", "Concentration"))
 ```
 
-#### What do you see in this relationship?
+#### What do you see in this relationship? When looking at discharge vs magensium concentration, I see that the concentrations at this specific height are greatest when water flow (discharge) is slower. 
 
 ## Models everywhere
 
 Group your data by basin and water quality parameter and nest the data.
 
 ```{r}
+grouped_data <- joined_data %>%
+  group_by(basin, parameter) %>%
+  nest()
 
-#<<<< YOUR CODE HERE >>>>#
-
+print(grouped_data)
 ```
 
 ## Apply a linear model to the data
@@ -299,9 +325,12 @@ Group your data by basin and water quality parameter and nest the data.
 You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = .x))`
 
 ```{r}
+library(purrr)
 
-#<<<< YOUR CODE HERE >>>>#
+grouped_datalm <- grouped_data %>%
+  mutate(grouped_datalm = map(data, ~lm(conc ~ flow, data = .x)))
 
+print(grouped_datalm)
 ```
 
 ## Summarize your data using `tidy`
@@ -309,19 +338,30 @@ You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = 
 You should have a new column called `mods` or something similar, and you need to `tidy` those mods and store this new, tidier data in another column.
 
 ```{r}
+library(broom)
 
-#<<<< YOUR CODE HERE >>>>#
+grouped_datalm <- grouped_datalm %>%
+  mutate(mods = map(grouped_datalm, tidy))
 
-
+print(grouped_datalm)
 ```
 
 ## Make a visual of your models' summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
 
 ```{r}
+tidy_data <- grouped_datalm %>%
+  unnest(mods)
 
-#<<<< YOUR CODE HERE >>>>#
+significant_data <- filter(tidy_data, p.value < 0.05)
 
-
+ggplot(tidy_data, aes(x = estimate, y = p.value, color = basin)) +
+  geom_point() +
+  labs(
+    title = "Relationship Between Discharge and Concentration",
+    x = "Slope of Relationship",
+    y = "P-value"
+  ) +
+  theme_minimal()
 ```
 
 ## Bonus
