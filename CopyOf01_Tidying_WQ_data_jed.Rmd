@@ -384,5 +384,7 @@ sites <- colorado %>%
 Q<- readNWISdv(sites, parameterCd="00060")%>%
 renameNWISColumns()
 
+saveRDS(Q, file = 'data/Q.RDS')
+
 #saveRDS(q_data, file = 'data/Q.RDS')
 ```
