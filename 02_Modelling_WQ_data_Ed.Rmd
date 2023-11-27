@@ -159,7 +159,7 @@ We now have a statistical confirmation of what the plot already showed us. There
 
 We now know how to model data at a single site for a single parameter, but is there an efficient way to do this for ALL sites and ALL parameters?
 
-HECK YES THERE IS!
+ahhhhhh jiaaahhhhh THERE IS!
 
 We will use the magic of `nesting` data to apply our trend models to all of our parameters and sites. First let's alter the data set a little to increase precision in our question.
 
@@ -272,6 +272,11 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 
 #<<<< YOUR CODE HERE >>>>#
 
+USGSQ<- mutate(Q,siteid = paste0("USGS-",site_no))%>%
+  rename(date=Date)
+
+tidyQ<- inner_join(USGSQ,tidied_full_wq,by = c("date","siteid"))
+
 ```
 
 ### Pick any site and ion combination and plot discharge versus ion concentration
@@ -279,6 +284,12 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 ```{r}
 
 #<<<< YOUR CODE HERE >>>>#
+
+CO5SO4 <- tidyQ %>%
+  filter(basin == 'colorado5', parameter == 'Sulfate') 
+
+ggplot(CO5SO4, aes(x = Flow, y = conc)) + 
+  geom_point()
 
 ```
 
