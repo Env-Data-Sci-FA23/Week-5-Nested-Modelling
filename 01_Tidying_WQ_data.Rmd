@@ -255,6 +255,71 @@ concentrations).
 
 ```{r}
 #<<<< YOUR CODE HERE >>>>#
+
+# <NAME> <- function(<ARGUMENTS>){
+  
+#   <ACTIONS>
+  
+#   return(<OUTPUT>)
+
+# }
+
+
+cleaner <- function(additional_data){
+
+parameters <- c("Calcium", "Magnesium", "Sodium", "Potassium", "Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate", "Chloride", "Alkalinity, bicarbonate", "Bicarbonate")
+conc_wide <- readWQPdata(siteid = additional_data$siteid, # pulling our siteids column in from the colorado object, becomes a vector
+                         sampleMedia = "Water", # WQP also has bilogical data and sediment data
+                         startDateLo = "1980-10-01", # must be formatted as YYYY-MM-DD
+                         startDateHi = "2023-11-01", # must be formatted as YYYY-MM-DD
+                         characteristicName = parameters) # our vector of `characteristcName`s
+
+conc_small <-  conc_wide %>%
+  select(date = ActivityStartDate,
+         parameter = CharacteristicName,
+         units = ResultMeasure.MeasureUnitCode,
+         siteid = MonitoringLocationIdentifier,
+         org = OrganizationFormalName,
+         org_id = OrganizationIdentifier,
+         time = ActivityStartTime.Time,
+         value = ResultMeasureValue,
+         sample_method = SampleCollectionMethod.MethodName,
+         analytical_method = ResultAnalyticalMethod.MethodName,
+         particle_size = ResultParticleSizeBasisText,
+         date_time = ActivityStartDateTime,
+         media = ActivityMediaName,
+         sample_depth = ActivityDepthHeightMeasure.MeasureValue,
+         sample_depth_unit = ActivityDepthHeightMeasure.MeasureUnitCode,
+         fraction = ResultSampleFractionText,
+         status = ResultStatusIdentifier) %>%
+  # Remove trailing white space in labels
+  mutate(units = trimws(units))  
+
+conc_meta <- conc_small %>%
+  left_join(., additional_data, by = "siteid") %>%
+  dplyr::mutate(ion = dplyr::case_when(parameter == "Calcium" ~ "Ca",
+                                       parameter == "Magnesium" ~ "Mg",
+                                       parameter == "Sodium" ~ "Na",
+                                       parameter == "Potassium" ~ "K",
+                                       parameter %in% c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate") ~ "SO4",
+                                       parameter == "Chloride" ~ "Cl",
+                                       parameter %in% c("Alkalinity, bicarbonate", "Bicarbonate") ~ "HCO3")) %>%
+  select(siteid, basin, ion, parameter, date, everything())
+
+conc_tidy <- conc_meta %>% 
+  filter(units == 'mg/l') %>%
+  mutate(date = ymd(date)) %>%
+  select(date,
+         parameter,
+         ion,
+         siteid,
+         basin,
+         conc = value)
+
+conc_daily <- conc_tidy %>%
+  group_by(date, parameter, siteid, basin) %>% 
+  summarize(conc = mean(conc, na.rm = T))
+}
 ```
 
 ## Question 2
@@ -265,6 +330,8 @@ quality data for the site IDs listed below:
 ```{r}
 additional_data <- tibble(siteid = c('USGS-09180000', 'USGS-09180500', 'USGS-09380000'),
                           basin = c('dolores', 'colorado4', 'colorado5'))
+
+clean_data <- cleaner(additional_data)
 ```
 
 This output of running the function should look identical in format to
@@ -280,7 +347,9 @@ combined data as `tidied_full_wq.RDS` in a folder called data.
 
 #<<<< YOUR CODE HERE >>>>#
 
-#saveRDS(wq, file = 'data/tidied_full_wq.RDS')
+wq <- bind_rows(clean_data, conc_daily)
+
+saveRDS(wq, file = 'data/tidied_full_wq.RDS')
 ```
 
 ## Question 4
@@ -298,6 +367,7 @@ automatically make the column names a little less annoying.
 
 ```{r}
 # Reminder! you can use ?readNWISdv to read about how the function works. 
+
 sites <- colorado %>%
   #Bind the two datasets to get all 8 sites
   bind_rows(additional_data) %>%
@@ -306,8 +376,19 @@ sites <- colorado %>%
   #Remove the USGS- prefix
   gsub('USGS-', '', .)
 
-#<<<< YOUR CODE HERE >>>>#
+
+colorado2 <- tibble(siteNumbers = c("09034500", "09069000",
+                              "09085000", "09095500", "09152500"),
+                   basin = c("colorado1", "eagle",
+                             "roaring", "colorado3", "gunnison"))
 
 
-#saveRDS(q_data, file = 'data/Q.RDS')
+Q <- readNWISdv(siteNumbers = colorado2$siteNumbers, 
+                         parameterCd = "00060", 
+                         startDate = "1980-10-01", 
+                         endDate = "2023-11-01") 
+
+Q <- renameNWISColumns(Q)
+
+#saveRDS(Q, file = 'data/Q.RDS')
 ```
