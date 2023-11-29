@@ -275,19 +275,26 @@ The above workflow really focuses on trend detection with Sens slope, but here w
 Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water quality data (`tidied_full_wq.RDS`). You want to join by both date and siteid. Remember! the discharge data has site IDs that we had to drop the `USGS-` from, so you will need to add that back in using `paste0`.
 
 ```{r}
+Q = readRDS("data/Q.RDS")
+```
+
+```{r}
 Q_fix <- rename(Q, siteid = site_no)
 ```
 
 ```{r}
-Q_fix2<- paste0("USGS-", Q_fix$siteid)
+Q_fix2<- Q_fix%>%
+  mutate(siteid = paste0("USGS-", siteid))
 ```
 
-```{paste0("USGS-", Q_fix$siteid)}
+```{r}
+Q_fix2 <- Q_fix2%>%
+  rename(date = Date)
 ```
 
 ```{r}
 #need to paste USGS- into Q and in Q the column for site is site_no
-Q_tidied <- inner_join(Q, tidied_full_wq.RDS, by = "date", "siteid")
+Q_tidied <- inner_join(Q_fix2, tidied_full_wq.RDS, by = c("date", "siteid"))
 
 ```
 
@@ -295,11 +302,17 @@ Q_tidied <- inner_join(Q, tidied_full_wq.RDS, by = "date", "siteid")
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+roaring_su <- Q_tidied %>%
+  filter(basin == 'roaring', parameter == 'Sulfate') 
+
+ggplot(roaring_su, aes(x = Flow, y = conc)) + 
+  geom_point()
 
 ```
 
-#### What do you see in this relationship?
+#### What do you see in this relationship? 
+
+#concentration decreases with flow rate, is this called a negative relationship when it rises on the left side of the screen
 
 ## Models everywhere
 
@@ -307,7 +320,12 @@ Group your data by basin and water quality parameter and nest the data.
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+basin_wq <- roaring_su %>%
+  
+  group_by(parameter, basin) %>% 
+  nest() 
+
+basin_wq
 
 ```
 
@@ -316,8 +334,10 @@ Group your data by basin and water quality parameter and nest the data.
 You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = .x))`
 
 ```{r}
-
-#<<<< YOUR CODE HERE >>>>#
+ 
+basin_wq2 <- basin_wq %>%
+  mutate(model = map(data, ~ lm(conc ~ q, data = .)))
+#nope, error, "q" is not a column name and I am unsure if I use flow or ? to compare, flow also didn't work, not sure if the issue is upstream or?
 
 ```
 
@@ -329,7 +349,7 @@ You should have a new column called `mods` or something similar, and you need to
 
 #<<<< YOUR CODE HERE >>>>#
 
-
+#can't accomplish the code before this to get here.
 ```
 
 ## Make a visual of your models' summaries that shows both which sites have significant relationships between discharge and concentration and the slope of that relationship.
@@ -338,7 +358,7 @@ You should have a new column called `mods` or something similar, and you need to
 
 #<<<< YOUR CODE HERE >>>>#
 
-
+#can't get the steps complete to get here. 
 ```
 
 ## Bonus
@@ -346,3 +366,5 @@ You should have a new column called `mods` or something similar, and you need to
 Look up the `furrr` package. What does `furrr::map` do that is different from `purrr::map`?
 
 When would you want to use this `furrr` function?
+
+#furr::map runs faster because it runs in parrallel according to the interwebs, but I think having been able to complete the two questions above with assistance would have helped be understand differences in this lesson, in particular.
