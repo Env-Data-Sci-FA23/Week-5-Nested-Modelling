@@ -270,7 +270,22 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+# Read discharge data
+q_data <- readRDS('data/Q.RDS')
+
+
+
+
+
+
+# Joining Q and WQ data
+q_data <- readRDS('data/Q.RDS')%>%
+  mutate(site_no = paste0("USGS-",site_no))%>%
+  rename("siteid" = site_no,
+         "date" = Date)
+
+combined_data <- inner_join(q_data,wq, by = c("siteid", "date"))
+
 
 ```
 
@@ -278,11 +293,21 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+# Filter data for a specific site and ion
+site_ion_data <- combined_data %>%
+  filter(siteid == 'USGS-09180000', parameter == 'Calcium')
+
+# Plot discharge vs ion concentration
+ggplot(site_ion_data, aes(x = Flow, y = conc)) +
+  geom_point() +
+  labs(title = "Discharge vs Calcium Concentration",
+       x = "Discharge (cfs)",
+       y = "Concentration (mg/L)")
 
 ```
 
 #### What do you see in this relationship?
+Thois graph shows the relationship between stream discharge (measured in cubic feet per second, or cfs) and calcium concentration (measured in milligrams per liter, mg/L). There is a negative correlation between discharge and calcium concentration. It seems like the graph is inversely proportional. (y= k/x, for constant k) 
 
 ## Models everywhere
 
@@ -290,7 +315,13 @@ Group your data by basin and water quality parameter and nest the data.
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+# Group and nest data
+nested_data <- combined_data %>%
+  group_by(basin, parameter) %>%
+  nest()
+
+
+
 
 ```
 
@@ -299,8 +330,9 @@ Group your data by basin and water quality parameter and nest the data.
 You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = .x))`
 
 ```{r}
-
-#<<<< YOUR CODE HERE >>>>#
+# Apply linear model
+nested_data <- nested_data %>%
+  mutate(lm_mods = map(data, ~ lm(conc ~ Flow, data = .x)))
 
 ```
 
@@ -309,9 +341,8 @@ You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = 
 You should have a new column called `mods` or something similar, and you need to `tidy` those mods and store this new, tidier data in another column.
 
 ```{r}
-
-#<<<< YOUR CODE HERE >>>>#
-
+model_summaries <- nested_data %>%
+  mutate(tidy_mods = map(lm_mods, ~tidy(.x)))
 
 ```
 
@@ -319,9 +350,24 @@ You should have a new column called `mods` or something similar, and you need to
 
 ```{r}
 
-#<<<< YOUR CODE HERE >>>>#
+model_summaries1 <- model_summaries %>%
+  unnest(tidy_mods)%>%
+  filter(term == "Flow")%>%
+  select(basin, parameter,estimate, p.value, term)%>%
+  mutate(trend = ifelse(p.value < 0.01, 'yes','no'))
 
+```
 
+```{r}
+ggplot(model_summaries1, aes(x = parameter, y = estimate, color = trend)) + 
+  geom_point() + 
+  facet_wrap(~basin, scales = 'free') + 
+  theme_bw() + 
+  scale_color_manual(values = c('red','orange')) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.pos = c(0.8, 0.1)) +
+  ylab("Slope") +
+  xlab("Ion")
 ```
 
 ## Bonus
@@ -329,3 +375,9 @@ You should have a new column called `mods` or something similar, and you need to
 Look up the `furrr` package. What does `furrr::map` do that is different from `purrr::map`?
 
 When would you want to use this `furrr` function?
+
+
+furrr::map is a function from the furrr package in R, it is an extension of the purrr package. The main difference between furrr::map and purrr::map is in how they handle tasks. furrr::map can do several tasks at the same time using parallel processing, which is great for big jobs or when you have a powerful computer. On the other hand, purrr::map does one task at a time, in order, which can be simpler but might take longer for large tasks.
+
+
+I would use furrr::map over purrr::map when I have a task that is both time-consuming and can be broken down into independent subtasks that don't rely on the results of each other. This is typically the case in scenarios such as large-scale simulations, complex data processing, or applying a function to a large list where each function call is independent of the others.
