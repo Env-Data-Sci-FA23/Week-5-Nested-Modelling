@@ -1,15 +1,6 @@
----
-title: "Modelling Public Water Quality Data"
-author: "Matthew Ross"
-date: "`r format(Sys.time(), '%B %d, %Y')`"
-output: 
-  html_document:
-    toc:  yes
-    toc_depth:  3
-    toc_float: true
-editor_options: 
-  chunk_output_type: console
----
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
 
 ```{r setup, warnings='hide, message=FALSE}
 source('setup.R')
