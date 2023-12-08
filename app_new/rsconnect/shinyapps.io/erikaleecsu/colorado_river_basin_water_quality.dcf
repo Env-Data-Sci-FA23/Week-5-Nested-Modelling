@@ -1,0 +1,12 @@
+name: colorado_river_basin_water_quality
+title: colorado_river_basin_water_quality
+username: erikaleecsu
+account: erikaleecsu
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 10752995
+bundleId: 8025694
+url: https://erikaleecsu.shinyapps.io/colorado_river_basin_water_quality/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

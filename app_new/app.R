@@ -17,6 +17,9 @@ library(dplyr)
 library(shinythemes)
 library(bslib)
 library(tmap)
+library(sf)
+library(tidyverse)
+library(ggplot2)
 
 final_wq <- readRDS("data/final_wq.RDS")
 
@@ -26,7 +29,7 @@ ui <- fluidPage(
   theme = bs_theme(version = 4, bootswatch = "yeti"),
   titlePanel("Colorado River Basin Water Quality"),
   h5(
-    "In this app you can filter annual occurrences of specific water quality parameters by basin, parameter, years and concentration. You can also click on individual occurrences to view metadata."
+    "In this app you can filter annual occurrences of specific water quality parameters by basin, parameter, years and concentration."
   ),
   sidebarLayout(
     sidebarPanel(
