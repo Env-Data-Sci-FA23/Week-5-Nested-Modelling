@@ -1,0 +1,364 @@
+---
+title: "Tidying Public Water Quality Data"
+author: "Matthew Ross"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: 
+  html_document:
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Why public data sets?
+
+Working with large, open-access data sets can serve many purposes. It
+can be an excellent way to explore new ideas, before investing in
+field-work or experiments. It can be a great way to take local or
+experimental results and expand them to different ecosystems, places, or
+landscapes. Or, it can be an excellent way to build, validate, and test
+ecological models on regional or national scales.
+
+So why doesn't everyone use public data? Well, it's often collected by a
+variety of organizations, with different methods, units, and
+inconsistent metadata. Together these issues make large public data sets
+quite messy. This messiness can take many different forms, but at the
+basic level it means that data is hard to analyze. This is not
+necessarily because the data itself is bad, but because the way it is
+organized is unclear and/or inconsistent.
+
+In this assignment, we will use the skills we've learned to convert a
+messy data set into something ready for analysis. As always, we will
+depend heavily on the {tidyverse}, an excellent series of packages that
+make data manipulation beautiful and easy. We will also be working with
+the US's [Water Quality Portal data
+base](https://www.waterqualitydata.us/), which we will access with the
+{dataRetrieval} package.
+
+## Loading key packages
+
+Let's first load in all of our necessary packages, which you can do with
+the 'setup.R' script we've created for you. Some of these packages might
+be new to you, such as:
+
+-   `mapview` : Similar to `tmap`, another package that allows us to
+    interactively map our data
+
+-   `broom` : simplified model outputs
+
+-   `trend` : Package to explore trends in data
+
+```{r setup, warnings = 'hide', message = FALSE}
+source('setup.R')
+```
+
+# Downloading data
+
+For this lesson, we'll explore water quality data in the Colorado River
+Basin as it moves from Colorado to Arizona. All data will be generated
+through the code you see below, with the only external information
+coming from knowing the site IDs for the monitoring locations along the
+Colorado River and the water quality characteristic names we are
+interested in.
+
+The water quality portal can be accessed with the function
+`readWQPdata()`, which takes a variety of arguments (like start date,
+end date, constituents, etc.). We'll generate these arguments for
+downloading the data below.
+
+## Download prep
+
+First we'll make a tibble (aka, a tidyverse-style table/data frame) of
+our site IDs of interest. (Generally, as the site ID's number increases,
+the site's location moves further downstream of the river's headwaters,
+which are near Grand Lake, CO.)
+
+```{r}
+colorado <- tibble(siteid = c("USGS-09034500", "USGS-09069000",
+                              "USGS-09085000", "USGS-09095500", "USGS-09152500"),
+                   basin = c("colorado1", "eagle",
+                             "roaring", "colorado3", "gunnison"))
+```
+
+Now that we have a tibble that contains a list of our sites of interest,
+we next will need to set up a series of rules for downloading data from
+the Water Quality Portal.
+
+We'll focus on cation and anion data from 1980-present. Each cation has
+a name that we might typically use (like calcium or sulfate), but the
+name may be different in the Water Quality Portal, so we have to check
+this website
+(<https://www.waterqualitydata.us/Codes/Characteristicname?mimeType=xml>)
+to get our names correct.
+
+```{r}
+# ca = "Calcium"
+# mg = "Magnesium"
+# na = "Sodium"
+# k = "Potassium"
+# so4 = c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate")
+# cl = "Chloride"
+# hco3 = c("Alkalinity, bicarbonate", "Bicarbonate")
+
+# Compile all these names into a single vector:
+parameters <- c("Calcium", "Magnesium", "Sodium", "Potassium", "Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate", "Chloride", "Alkalinity, bicarbonate", "Bicarbonate")
+```
+
+Using our site names and characteristic names generated above, we can
+now run the `readWQPdata()` function to import water quality data for
+each of our sites and parameters:
+
+```{r}
+conc_wide <- readWQPdata(siteid = colorado$siteid, # pulling our siteids column in from the colorado object, becomes a vector
+                         sampleMedia = "Water", # WQP also has bilogical data and sediment data
+                         startDateLo = "1980-10-01", # must be formatted as YYYY-MM-DD
+                         startDateHi = "2023-11-01", # must be formatted as YYYY-MM-DD
+                         characteristicName = parameters) # our vector of `characteristcName`s
+```
+
+# Data tidying
+
+Now that we have downloaded the data, we need to tidy it up. The Water
+Quality Portal data comes with an incredible amount of metadata in the
+form of extra columns. But we don't need all this extra data.
+
+## Look at the data you downloaded
+
+```{r}
+View(conc_wide)
+```
+
+## Initial cleaning up
+
+Wow, that looks messy! Lots of extraneous columns, lots of NAs, so much
+information we can hardly parse it. Let's pare it down to the
+essentials.
+
+```{r}
+# This code mostly just grabs and renames the most important data columns
+conc_small <-  conc_wide %>%
+  select(date = ActivityStartDate,
+         parameter = CharacteristicName,
+         units = ResultMeasure.MeasureUnitCode,
+         siteid = MonitoringLocationIdentifier,
+         org = OrganizationFormalName,
+         org_id = OrganizationIdentifier,
+         time = ActivityStartTime.Time,
+         value = ResultMeasureValue,
+         sample_method = SampleCollectionMethod.MethodName,
+         analytical_method = ResultAnalyticalMethod.MethodName,
+         particle_size = ResultParticleSizeBasisText,
+         date_time = ActivityStartDateTime,
+         media = ActivityMediaName,
+         sample_depth = ActivityDepthHeightMeasure.MeasureValue,
+         sample_depth_unit = ActivityDepthHeightMeasure.MeasureUnitCode,
+         fraction = ResultSampleFractionText,
+         status = ResultStatusIdentifier) %>%
+  # Remove trailing white space in labels
+  mutate(units = trimws(units))  
+```
+
+Let's also add in the aliases we established in our`colorado` object,
+and then add a new column, `ion`, that represents what each of our
+`parameter`s are associated with. Next, let's make sure this information
+lives at the beginning of the table:
+
+```{r}
+conc_meta <- conc_small %>%
+  left_join(., colorado, by = "siteid") %>%
+  dplyr::mutate(ion = dplyr::case_when(parameter == "Calcium" ~ "Ca",
+                                       parameter == "Magnesium" ~ "Mg",
+                                       parameter == "Sodium" ~ "Na",
+                                       parameter == "Potassium" ~ "K",
+                                       parameter %in% c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate") ~ "SO4",
+                                       parameter == "Chloride" ~ "Cl",
+                                       parameter %in% c("Alkalinity, bicarbonate", "Bicarbonate") ~ "HCO3")) %>%
+  select(siteid, basin, ion, parameter, date, everything())
+```
+
+Now let's look at this tidier version:
+
+```{r}
+View(conc_meta)
+```
+
+## Final tidy data set
+
+That is getting better, but we still have lots of extraneous
+information. For our purposes let's assume that the sample and analytic
+methods used by the USGS are reasonable and exchangeable (i.e., one
+method is equivalent to the other). If we make that assumption then the
+only remaining data we need to clean is to make sure that all the data
+has the same units.
+
+### Unit check
+
+```{r unit check}
+table(conc_meta$units)
+```
+
+Wow! Almost all the data is in mg/L (or, depending on when you pulled
+it, all of it). That makes our job really easy.
+
+We just need to remove these (potential) non-mg/L observations with a
+`dplyr::filter` call and then select an even smaller subset of useful
+columns, while adding a date object column using the `lubridate::ymd`
+call.
+
+```{r tidy}
+conc_tidy <- conc_meta %>% 
+  filter(units == 'mg/l') %>%
+  mutate(date = ymd(date)) %>%
+  select(date,
+         parameter,
+         ion,
+         siteid,
+         basin,
+         conc = value)
+```
+
+### Daily data
+
+We now have a manageable data frame. But how do we want to organize the
+data? Since we are looking at a really long time-series of data, let's
+look at data as a daily average. The `dplyr::group_by`
+`dplyr::summarize` functions make this really easy:
+
+```{r}
+# The amazing group_by function groups all the data so that the summary
+# only applies to each subgroup (siteid, date, and parameter combination).
+# So in the end you get a daily average concentration for each siteid and parameter type. 
+conc_daily <- conc_tidy %>%
+  group_by(date, parameter, siteid, basin) %>% 
+  summarize(conc = mean(conc, na.rm = T))
+```
+
+Taking daily averages looks like it did eliminate
+`r nrow(conc_tidy) - nrow(conc_daily)` observations, meaning these
+site-date combinations had multiple observations on the same day.
+
+# Assignment!
+
+Let's imagine you wanted to add more data to your water quality
+analyses, but you also know that you need to do this analysis over and
+over again. Let's walk through how we would: 1) Add new data to our
+current `conc_tidy` data set and 2) how to write a function to download,
+clean, and update our data with far less code.
+
+## Question 1
+
+Write a function that can repeat the above steps for any table of site
+IDs with a single function call. This function should take in a single
+tibble that is identical in structure to the `colorado` one above (i.e.,
+it has columns named `siteid` and `basin`), and produce an identical
+data frame to `conc_daily` (i.e., a data frame of daily average ion
+concentrations).
+
+```{r}
+download_clean_data <- function(site_data) {
+  parameters <- c("Calcium", "Magnesium", "Sodium", "Potassium", "Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate", "Chloride", "Alkalinity, bicarbonate", "Bicarbonate")
+
+  conc_wide <- readWQPdata(siteid = site_data$siteid,
+                           sampleMedia = "Water",
+                           startDateLo = "1980-10-01",
+                           startDateHi = "2023-11-01",
+                           characteristicName = parameters)
+
+  conc_small <- conc_wide %>%
+    select(date = ActivityStartDate,
+           parameter = CharacteristicName,
+           units = ResultMeasure.MeasureUnitCode,
+           siteid = MonitoringLocationIdentifier,
+           org = OrganizationFormalName,
+           org_id = OrganizationIdentifier,
+           time = ActivityStartTime.Time,
+           value = ResultMeasureValue,
+           sample_method = SampleCollectionMethod.MethodName,
+           analytical_method = ResultAnalyticalMethod.MethodName,
+           particle_size = ResultParticleSizeBasisText,
+           date_time = ActivityStartDateTime,
+           media = ActivityMediaName,
+           sample_depth = ActivityDepthHeightMeasure.MeasureValue,
+           sample_depth_unit = ActivityDepthHeightMeasure.MeasureUnitCode,
+           fraction = ResultSampleFractionText,
+           status = ResultStatusIdentifier) %>%
+    mutate(units = trimws(units))
+
+  conc_meta <- conc_small %>%
+    left_join(., site_data, by = "siteid") %>%
+    mutate(ion = case_when(parameter == "Calcium" ~ "Ca",
+                           parameter == "Magnesium" ~ "Mg",
+                           parameter == "Sodium" ~ "Na",
+                           parameter == "Potassium" ~ "K",
+                           parameter %in% c("Sulfate", "Sulfate as SO4", "Sulfur Sulfate", "Total Sulfate") ~ "SO4",
+                           parameter == "Chloride" ~ "Cl",
+                           parameter %in% c("Alkalinity, bicarbonate", "Bicarbonate") ~ "HCO3")) %>%
+    select(siteid, basin, ion, parameter, date, everything())
+
+  conc_tidy <- conc_meta %>%
+    filter(units == 'mg/l') %>%
+    mutate(date = ymd(date)) %>%
+    select(date, parameter, ion, siteid, basin, conc = value)
+
+  conc_daily <- conc_tidy %>%
+    group_by(date, parameter, siteid, basin) %>% 
+    summarize(conc = mean(conc, na.rm = TRUE))
+
+  return(conc_daily)
+}
+
+```
+
+## Question 2
+
+Using the function you developed in Question 1, download and clean water
+quality data for the site IDs listed below:
+
+```{r}
+additional_data <- tibble(siteid = c('USGS-09180000', 'USGS-09180500', 'USGS-09380000'),
+                          basin = c('dolores', 'colorado4', 'colorado5'))
+additional_data_result <- download_clean_data(additional_data)
+```
+
+This output of running the function should look identical in format to
+our original `conc_daily` data set, but for these sites instead.
+
+## Question 3
+
+Combine the data pulled in Question 2 with the original data from
+`conc_daily`, so that this data is in a single data frame. Save this
+combined data as `tidied_full_wq.RDS` in a folder called data.
+
+```{r}
+
+wq <- bind_rows(conc_daily, additional_data_result)
+saveRDS(wq, file = 'data/tidied_full_wq.RDS')
+```
+
+## Question 4
+
+We now have a data set of stream water quality data for several sites
+throughout Colorado. One potential control on stream chemistry is stream
+discharge. A function in the {dataRetrieval} package that allows you to
+easily download discharge data is `readNWISdv()`. Use this function to
+download daily discharge data for all eight of the sites we are
+interested in. Save the data as an RDS object called called `Q` in the
+data folder: `data/Q.RDS`. The site numbers are the same as above but
+you need to remove `USGS-` from each site. Discharge is
+`parameterCd = 00060` and you should use `renameNWISColumns()` to
+automatically make the column names a little less annoying.
+
+```{r}
+sites <- colorado %>%
+  bind_rows(additional_data) %>%
+  pull(siteid) %>%
+  gsub('USGS-', '', .)
+
+q_data <- readNWISdv(siteNumbers = sites,
+                     parameterCd = '00060',
+                     startDate = '1980-10-01',
+                     endDate = '2023-11-01') %>%
+  renameNWISColumns()
+
+saveRDS(q_data, file = 'data/Q.RDS')
+
+```
