@@ -271,6 +271,16 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 ```{r}
 
 #<<<< YOUR CODE HERE >>>>#
+Q <- readRDS('data/Q.RDS')
+
+usgs <- "USGS"
+
+Q$site_no <- paste0(usgs, "-", Q$site_no)
+
+colnames(Q)[colnames(Q) == "Date"] <- "date"
+colnames(Q)[colnames(Q) == "site_no"] <- "siteid"
+
+stream_data <- inner_join(wq, Q, by = c("date", "siteid"))
 
 ```
 
@@ -279,10 +289,17 @@ Use `inner_join` to join our daily discharge data (`Q.RDS`) to our raw water qua
 ```{r}
 
 #<<<< YOUR CODE HERE >>>>#
+roaring_sulf <- stream_data %>%
+  filter(c(basin == "roaring"), (parameter == "Sulfate"))
+
+ggplot(roaring_sulf, aes(x = Flow, y = conc)) +
+  geom_point()
 
 ```
 
 #### What do you see in this relationship?
+
+As flow increases, Sulfate ion concentration decreases. 
 
 ## Models everywhere
 
@@ -291,6 +308,10 @@ Group your data by basin and water quality parameter and nest the data.
 ```{r}
 
 #<<<< YOUR CODE HERE >>>>#
+
+stream_nest <- stream_data %>%
+  group_by(characteristic = parameter, basin) %>%
+             nest()
 
 ```
 
@@ -302,6 +323,9 @@ You will need to use a `map` command like this: `map(data, ~lm(conc ~ q, data = 
 
 #<<<< YOUR CODE HERE >>>>#
 
+stream_model <- stream_nest %>%
+mutate(mods = map(data, ~lm(conc ~ Flow, data = .x)))
+
 ```
 
 ## Summarize your data using `tidy`
@@ -312,6 +336,9 @@ You should have a new column called `mods` or something similar, and you need to
 
 #<<<< YOUR CODE HERE >>>>#
 
+stream_mod_tidy2 <- stream_model %>%
+  mutate(tidy = map(data, ~ tidier_sens(.x$conc)))
+
 
 ```
 
@@ -321,6 +348,18 @@ You should have a new column called `mods` or something similar, and you need to
 
 #<<<< YOUR CODE HERE >>>>#
 
+stream_mod_sum <- stream_mod_tidy2 %>%
+  unnest(tidy) %>%
+  select(basin, characteristic, p.value, slope) %>%
+  mutate(trend = ifelse(p.value < 0.01, 'yes', 'no'))
+
+ggplot(stream_mod_sum, aes(x = characteristic, y = slope, color = trend)) +
+  geom_point() +
+  facet_wrap(~basin, scales = 'free') +
+  theme_minimal() +
+  scale_color_manual(values = c('black', 'green3')) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.pos = c(0.8, 0.1))
 
 ```
 
